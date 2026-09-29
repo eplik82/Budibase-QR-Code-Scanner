@@ -1,0 +1,34 @@
+{
+  "name": "QR-Code-Scanner",
+  "version": "2.0.0",
+  "description": "A component that scans QR codes, including inverted (white on black) codes.",
+  "license": "MIT",
+  "svelte": "index.js",
+  "module": "dist/plugin.min.js",
+  "scripts": {
+    "build": "rollup -c rollup.config.mjs",
+    "watch": "rollup -cw rollup.config.mjs"
+  },
+  "dependencies": {
+    "jsqr": "^1.4.0",
+    "svelte": "^5.0.0"
+  },
+  "devDependencies": {
+    "@budibase/backend-core": "^2.8.0",
+    "@rollup/plugin-commonjs": "^25.0.7",
+    "@rollup/plugin-node-resolve": "^15.2.3",
+    "postcss": "^8.2.10",
+    "rollup": "^4.21.0",
+    "rollup-plugin-copy2": "^0.3.1",
+    "rollup-plugin-json": "^4.0.0",
+    "rollup-plugin-polyfill-node": "^0.8.0",
+    "rollup-plugin-postcss": "^4.0.0",
+    "rollup-plugin-svelte": "^7.2.3",
+    "rollup-plugin-svg": "^2.0.0",
+    "rollup-plugin-terser": "^7.0.2",
+    "tar": "^6.1.11"
+  },
+  "peerDependencies": {
+    "svelte": "^5.0.0"
+  }
+}

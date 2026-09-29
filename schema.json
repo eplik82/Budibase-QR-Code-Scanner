@@ -1,0 +1,80 @@
+{
+  "type": "component",
+  "metadata": {
+    "svelteMajor": 5
+  },
+  "schema": {
+    "name": "QR-Code-Scanner",
+    "friendlyName": "QR Code Scanner",
+    "description": "A component that scans QR codes, including inverted (white on black) codes.",
+    "icon": "Text",
+    "settings": [
+      {
+        "type": "field/string",
+        "key": "field",
+        "label": "Field"
+      },
+      {
+        "type": "text",
+        "key": "label",
+        "label": "Label",
+        "defaultValue": "QR Code Scanner"
+      },
+      {
+        "type": "select",
+        "key": "inversionMode",
+        "label": "Code Colors",
+        "options": [
+          { "label": "Dark on light and light on dark", "value": "attemptBoth" },
+          { "label": "Dark on light only", "value": "dontInvert" },
+          { "label": "Light on dark first", "value": "invertFirst" }
+        ],
+        "defaultValue": "attemptBoth"
+      },
+      {
+        "type": "number",
+        "key": "fps",
+        "label": "FPS",
+        "min": 1,
+        "max": 60,
+        "defaultValue": 15
+      },
+      {
+        "type": "boolean",
+        "key": "autoStartCamera",
+        "label": "Auto Start Camera",
+        "defaultValue": false
+      },
+      {
+        "type": "boolean",
+        "key": "allowFileScan",
+        "label": "Allow Scanning From Image File",
+        "defaultValue": true
+      },
+      {
+        "type": "boolean",
+        "key": "scannerBox",
+        "label": "Use Scanner Box",
+        "defaultValue": false
+      },
+      {
+        "type": "number",
+        "key": "scannerBoxWidth",
+        "label": "Scanner Box Width",
+        "min": 1,
+        "max": 10000,
+        "dependsOn": "scannerBox",
+        "defaultValue": 250
+      },
+      {
+        "type": "number",
+        "key": "scannerBoxHeight",
+        "label": "Scanner Box Height",
+        "min": 1,
+        "max": 10000,
+        "dependsOn": "scannerBox",
+        "defaultValue": 250
+      }
+    ]
+  }
+}
