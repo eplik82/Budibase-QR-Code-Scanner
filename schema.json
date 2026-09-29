@@ -21,6 +21,17 @@
         "defaultValue": "QR Code Scanner"
       },
       {
+        "type": "event",
+        "key": "onScan",
+        "label": "On Scan",
+        "context": [
+          {
+            "label": "Scanned Value",
+            "key": "value"
+          }
+        ]
+      },
+      {
         "type": "select",
         "key": "inversionMode",
         "label": "Code Colors",
@@ -32,6 +43,33 @@
         "defaultValue": "attemptBoth"
       },
       {
+        "type": "boolean",
+        "key": "autoStartCamera",
+        "label": "Auto Start Camera",
+        "defaultValue": false
+      },
+      {
+        "type": "boolean",
+        "key": "continuousScan",
+        "label": "Continuous Scanning",
+        "defaultValue": false
+      },
+      {
+        "type": "number",
+        "key": "scanDelay",
+        "label": "Same Code Rescan Delay (ms)",
+        "min": 0,
+        "max": 60000,
+        "dependsOn": "continuousScan",
+        "defaultValue": 1500
+      },
+      {
+        "type": "boolean",
+        "key": "showResult",
+        "label": "Show Scanned Result",
+        "defaultValue": true
+      },
+      {
         "type": "number",
         "key": "fps",
         "label": "FPS",
@@ -40,9 +78,77 @@
         "defaultValue": 15
       },
       {
+        "type": "select",
+        "key": "preferredCamera",
+        "label": "Preferred Camera",
+        "options": [
+          { "label": "Back", "value": "back" },
+          { "label": "Front", "value": "front" }
+        ],
+        "defaultValue": "back"
+      },
+      {
+        "type": "select",
+        "key": "resolution",
+        "label": "Camera Resolution",
+        "options": [
+          { "label": "Standard (640x480)", "value": "sd" },
+          { "label": "HD (1280x720)", "value": "hd" },
+          { "label": "Full HD (1920x1080)", "value": "fullhd" }
+        ],
+        "defaultValue": "hd"
+      },
+      {
+        "type": "number",
+        "key": "zoom",
+        "label": "Zoom Level",
+        "min": 1,
+        "max": 8,
+        "defaultValue": 1
+      },
+      {
         "type": "boolean",
-        "key": "autoStartCamera",
-        "label": "Auto Start Camera",
+        "key": "showZoomControl",
+        "label": "Show Zoom Slider",
+        "defaultValue": true
+      },
+      {
+        "type": "boolean",
+        "key": "showTorchButton",
+        "label": "Show Flashlight Button",
+        "defaultValue": true
+      },
+      {
+        "type": "boolean",
+        "key": "soundOnScan",
+        "label": "Play Sound On Scan",
+        "defaultValue": true
+      },
+      {
+        "type": "select",
+        "key": "soundType",
+        "label": "Sound",
+        "options": [
+          { "label": "Beep", "value": "beep" },
+          { "label": "Double beep", "value": "double" },
+          { "label": "Chime", "value": "chime" }
+        ],
+        "dependsOn": "soundOnScan",
+        "defaultValue": "beep"
+      },
+      {
+        "type": "number",
+        "key": "soundVolume",
+        "label": "Sound Volume (0-100)",
+        "min": 0,
+        "max": 100,
+        "dependsOn": "soundOnScan",
+        "defaultValue": 50
+      },
+      {
+        "type": "boolean",
+        "key": "vibrateOnScan",
+        "label": "Vibrate On Scan",
         "defaultValue": false
       },
       {

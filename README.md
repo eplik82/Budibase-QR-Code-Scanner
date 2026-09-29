@@ -15,14 +15,30 @@ Find out more about [Budibase](https://github.com/Budibase/budibase).
 ## Options
 Option | Description |
 |---|---|
+| Field | The form field the scanned value is written to.|
 | Label | What the field is called.|
+| On Scan | Actions to run after each scan. The scanned text is available as the `Scanned Value` binding.|
 | Code Colors | Which code colors to look for: both dark on light and light on dark (default), dark on light only (slightly faster), or light on dark first.|
-| FPS | The frame rate of the scanner.|
 | Auto Start Camera | Start the camera as soon as the page loads (the browser asks for permission the first time).|
+| Continuous Scanning | Keep the camera running after a scan, so several codes can be scanned in a row.|
+| Same Code Rescan Delay (ms) | In continuous mode, the same code is only scanned again after it has been out of view for this long.|
+| Show Scanned Result | Show the scanned text under the camera.|
+| FPS | How many frames per second are scanned.|
+| Preferred Camera | Back or front camera. The camera can also be changed while scanning; the last one used is remembered.|
+| Camera Resolution | Standard, HD or Full HD. Higher resolution helps with small codes.|
+| Zoom Level | Starting zoom (1-8). Uses the camera's own zoom when available (mostly phones), otherwise digital zoom.|
+| Show Zoom Slider | Let the user change the zoom while scanning.|
+| Show Flashlight Button | Show a flashlight button when the camera supports it (mostly phones).|
+| Play Sound On Scan | Play a sound after a successful scan.|
+| Sound | Beep, double beep or chime.|
+| Sound Volume (0-100) | Volume of the scan sound.|
+| Vibrate On Scan | Vibrate after a successful scan (Android devices).|
 | Allow Scanning From Image File | Show a button to scan a QR code from an image file.|
 | Scanner Box | Whether to draw a box in the center of the screen that users will have to align QR codes inside of.|
 | Scanner Box Width | The width of the scanner box.|
 | Scanner Box Height | The height of the scanner box.|
+
+For small codes, use Full HD resolution and a zoom level of 2-4.
 
 ## Instructions
 

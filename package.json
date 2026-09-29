@@ -1,6 +1,6 @@
 {
   "name": "QR-Code-Scanner",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "A component that scans QR codes, including inverted (white on black) codes.",
   "license": "MIT",
   "svelte": "index.js",

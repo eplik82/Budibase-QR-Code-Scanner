@@ -9,13 +9,26 @@
   //Property Fields
   export let field;
   export let label;
-  export let autoStartCamera;
-  export let fps;
   export let inversionMode;
+  export let autoStartCamera;
+  export let continuousScan;
+  export let scanDelay;
+  export let showResult;
+  export let fps;
+  export let preferredCamera;
+  export let resolution;
+  export let zoom;
+  export let showZoomControl;
+  export let showTorchButton;
+  export let soundOnScan;
+  export let soundType;
+  export let soundVolume;
+  export let vibrateOnScan;
   export let allowFileScan;
   export let scannerBox;
   export let scannerBoxWidth;
   export let scannerBoxHeight;
+  export let onScan;
 
   const { styleable, builderStore } = getContext("sdk");
   const component = getContext("component");
@@ -48,14 +61,34 @@
 
   $: inBuilder = $builderStore?.inBuilder;
 
-  // Frames are downscaled to at most this many pixels on the long side before decoding
+  // Frames are scaled to at most this many pixels on the long side before decoding
   const MAX_DECODE_SIZE = 800;
+  const MAX_ZOOM = 8;
   const CAMERA_STORAGE_KEY = "budibase-qr-scanner-camera";
+  const RESOLUTIONS = {
+    sd: { width: 640, height: 480 },
+    hd: { width: 1280, height: 720 },
+    fullhd: { width: 1920, height: 1080 },
+  };
+  // [frequency (Hz), start offset (s), duration (s)]
+  const SOUNDS = {
+    beep: [[1000, 0, 0.12]],
+    double: [
+      [1200, 0, 0.08],
+      [1200, 0.13, 0.08],
+    ],
+    chime: [
+      [880, 0, 0.12],
+      [1320, 0.12, 0.2],
+    ],
+  };
 
   let video;
   let stream;
+  let track;
   let scanTimer;
   let fileInput;
+  let audioContext;
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
 
@@ -66,6 +99,22 @@
   let success = false;
   let qrCodeValue = "";
   let errorMessage = "";
+  let lastScanValue = null;
+  let lastScanSeen = 0;
+
+  // Zoom: hardware zoom is used when the camera supports it, the rest is done digitally
+  let zoomLevel = 1;
+  let hardwareZoom = null;
+  let digitalZoom = 1;
+  let torchSupported = false;
+  let torchOn = false;
+
+  $: zoomLevel = clampZoom(zoom);
+
+  function clampZoom(value) {
+    const z = Number(value);
+    return Number.isFinite(z) ? Math.min(MAX_ZOOM, Math.max(1, z)) : 1;
+  }
 
   function readStoredCamera() {
     try {
@@ -83,18 +132,55 @@
     }
   }
 
+  // Audio can only start after a user gesture, so this is called from click handlers too
+  function unlockAudio() {
+    if (!soundOnScan) return;
+    try {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) return;
+      audioContext = audioContext || new AudioContextClass();
+      if (audioContext.state === "suspended") audioContext.resume();
+    } catch (e) {
+      audioContext = null;
+    }
+  }
+
+  function playScanSound() {
+    unlockAudio();
+    if (!audioContext) return;
+    const volume = Math.min(100, Math.max(0, soundVolume ?? 50)) / 100;
+    const now = audioContext.currentTime;
+    for (const [frequency, offset, duration] of SOUNDS[soundType] || SOUNDS.beep) {
+      const oscillator = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+      oscillator.type = "sine";
+      oscillator.frequency.value = frequency;
+      gain.gain.setValueAtTime(0.0001, now + offset);
+      gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, volume), now + offset + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + offset + duration);
+      oscillator.connect(gain).connect(audioContext.destination);
+      oscillator.start(now + offset);
+      oscillator.stop(now + offset + duration + 0.02);
+    }
+  }
+
   const decode = (imageData) =>
     jsQR(imageData.data, imageData.width, imageData.height, {
       inversionAttempts: inversionMode || "attemptBoth",
     });
 
-  // Draws the given source region into the work canvas (downscaled) and decodes it
-  function decodeRegion(source, sx, sy, sw, sh) {
-    const scale = Math.min(1, MAX_DECODE_SIZE / Math.max(sw, sh));
+  // Draws the given source region into the work canvas and decodes it.
+  // Digitally zoomed regions are upscaled so small codes get more pixels.
+  function decodeRegion(source, sx, sy, sw, sh, upscale = 1) {
+    const longSide = Math.max(sw, sh);
+    const target = Math.min(MAX_DECODE_SIZE, longSide * upscale);
+    const scale = target / longSide;
     const w = Math.max(1, Math.round(sw * scale));
     const h = Math.max(1, Math.round(sh * scale));
     canvas.width = w;
     canvas.height = h;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
     ctx.drawImage(source, sx, sy, sw, sh, 0, 0, w, h);
     return decode(ctx.getImageData(0, 0, w, h));
   }
@@ -103,13 +189,17 @@
     const vw = video?.videoWidth;
     const vh = video?.videoHeight;
     if (!vw || !vh) return null;
-    if (!scannerBox) return decodeRegion(video, 0, 0, vw, vh);
 
-    // The scanner box is given in displayed pixels; map it to video pixels
-    const ratio = vw / (video.clientWidth || vw);
-    const sw = Math.min(vw, (scannerBoxWidth || 250) * ratio);
-    const sh = Math.min(vh, (scannerBoxHeight || 250) * ratio);
-    return decodeRegion(video, (vw - sw) / 2, (vh - sh) / 2, sw, sh);
+    // Only the (digitally zoomed) visible centre of the frame is scanned
+    let sw = vw / digitalZoom;
+    let sh = vh / digitalZoom;
+    if (scannerBox) {
+      // The scanner box is given in displayed pixels; map it to video pixels
+      const ratio = vw / ((video.clientWidth || vw) * digitalZoom);
+      sw = Math.min(sw, (scannerBoxWidth || 250) * ratio);
+      sh = Math.min(sh, (scannerBoxHeight || 250) * ratio);
+    }
+    return decodeRegion(video, (vw - sw) / 2, (vh - sh) / 2, sw, sh, digitalZoom);
   }
 
   function scanLoop() {
@@ -121,13 +211,53 @@
     } catch (e) {
       // A frame that cannot be read yet is simply skipped
     }
-    if (result?.data) {
-      onScanSuccess(result.data);
-      return;
+    if (result?.data && handleDecoded(result.data)) {
+      if (!continuousScan) return;
     }
     const interval = 1000 / Math.min(60, Math.max(1, fps || 15));
     const elapsed = performance.now() - started;
     scanTimer = setTimeout(scanLoop, Math.max(0, interval - elapsed));
+  }
+
+  // Returns true when the value was accepted as a new scan
+  function handleDecoded(value) {
+    const now = Date.now();
+    if (continuousScan) {
+      // The same code only counts again after it has been out of view for the scan delay
+      const isRepeat =
+        value === lastScanValue && now - lastScanSeen < Math.max(0, scanDelay ?? 1500);
+      lastScanValue = value;
+      lastScanSeen = now;
+      if (isRepeat) return false;
+    }
+    onScanSuccess(value);
+    return true;
+  }
+
+  async function applyZoom() {
+    let hwZoom = 1;
+    const range = hardwareZoom;
+    if (track && range) {
+      hwZoom = Math.min(range.max, Math.max(range.min, zoomLevel));
+      try {
+        await track.applyConstraints({ advanced: [{ zoom: hwZoom }] });
+      } catch (e) {
+        hwZoom = 1;
+      }
+    }
+    digitalZoom = Math.max(1, zoomLevel / hwZoom);
+  }
+
+  $: if (scanning && zoomLevel) applyZoom();
+
+  async function toggleTorch() {
+    if (!track || !torchSupported) return;
+    try {
+      await track.applyConstraints({ advanced: [{ torch: !torchOn }] });
+      torchOn = !torchOn;
+    } catch (e) {
+      torchSupported = false;
+    }
   }
 
   async function loadCameras() {
@@ -139,12 +269,28 @@
     }
   }
 
+  function videoConstraints(useStoredCamera) {
+    const size = RESOLUTIONS[resolution] || RESOLUTIONS.hd;
+    const constraints = {
+      width: { ideal: size.width },
+      height: { ideal: size.height },
+    };
+    if (useStoredCamera && cameraId) {
+      constraints.deviceId = { exact: cameraId };
+    } else {
+      constraints.facingMode = preferredCamera === "front" ? "user" : "environment";
+    }
+    return constraints;
+  }
+
   async function startCamera() {
     if (!formContext || inBuilder || starting) return;
+    unlockAudio();
     stopCamera();
     errorMessage = "";
     success = false;
     qrCodeValue = "";
+    lastScanValue = null;
     fieldApi?.setValue(qrCodeValue);
 
     if (!navigator.mediaDevices?.getUserMedia) {
@@ -155,30 +301,33 @@
 
     starting = true;
     try {
-      const videoConstraints = cameraId
-        ? { deviceId: { exact: cameraId } }
-        : { facingMode: "environment" };
       try {
         stream = await navigator.mediaDevices.getUserMedia({
-          video: videoConstraints,
+          video: videoConstraints(true),
           audio: false,
         });
       } catch (e) {
-        // The remembered camera may be gone - fall back to any camera
+        // The remembered camera may be gone - fall back to the preferred one
         if (!cameraId || e?.name !== "OverconstrainedError") throw e;
         cameraId = "";
         stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment" },
+          video: videoConstraints(false),
           audio: false,
         });
       }
+
+      track = stream.getVideoTracks()[0];
+      const capabilities = track?.getCapabilities?.() || {};
+      hardwareZoom = capabilities.zoom?.max > capabilities.zoom?.min ? capabilities.zoom : null;
+      torchSupported = !!capabilities.torch;
+      torchOn = false;
 
       scanning = true;
       await tick();
       video.srcObject = stream;
       await video.play();
 
-      const activeId = stream.getVideoTracks()[0]?.getSettings?.().deviceId;
+      const activeId = track?.getSettings?.().deviceId;
       if (activeId) {
         cameraId = activeId;
         storeCamera(activeId);
@@ -199,8 +348,10 @@
   function stopCamera() {
     scanning = false;
     clearTimeout(scanTimer);
-    stream?.getTracks().forEach((track) => track.stop());
+    stream?.getTracks().forEach((t) => t.stop());
     stream = null;
+    track = null;
+    torchOn = false;
     if (video) video.srcObject = null;
   }
 
@@ -208,6 +359,15 @@
     cameraId = e.target.value;
     storeCamera(cameraId);
     if (scanning) startCamera();
+  }
+
+  function onZoomInput(e) {
+    zoomLevel = clampZoom(e.target.value);
+  }
+
+  function chooseFile() {
+    unlockAudio();
+    fileInput.click();
   }
 
   async function scanFile(e) {
@@ -234,10 +394,13 @@
   }
 
   function onScanSuccess(decodedText) {
-    stopCamera();
+    if (!continuousScan) stopCamera();
     qrCodeValue = decodedText;
     fieldApi?.setValue(qrCodeValue);
     success = true;
+    if (soundOnScan) playScanSound();
+    if (vibrateOnScan) navigator.vibrate?.(100);
+    onScan?.({ value: decodedText });
   }
 
   onMount(() => {
@@ -246,6 +409,7 @@
 
   onDestroy(() => {
     stopCamera();
+    audioContext?.close?.();
     fieldApi?.deregister();
     unsubscribe?.();
   });
@@ -270,7 +434,12 @@
           {#if scanning}
             <div class="video-wrapper">
               <!-- svelte-ignore a11y-media-has-caption -->
-              <video bind:this={video} muted playsinline></video>
+              <video
+                bind:this={video}
+                muted
+                playsinline
+                style={`transform: scale(${digitalZoom});`}
+              ></video>
               {#if scannerBox}
                 <div
                   class="scanner-box"
@@ -278,9 +447,23 @@
                 ></div>
               {/if}
             </div>
+            {#if showZoomControl}
+              <label class="zoom">
+                Zoom
+                <input
+                  type="range"
+                  min="1"
+                  max={MAX_ZOOM}
+                  step="0.1"
+                  value={zoomLevel}
+                  on:input={onZoomInput}
+                />
+                <span>{zoomLevel.toFixed(1)}x</span>
+              </label>
+            {/if}
           {/if}
 
-          {#if success}
+          {#if success && showResult !== false}
             <p class="result">Scanned Result: {qrCodeValue}</p>
           {/if}
 
@@ -299,6 +482,11 @@
                   {/each}
                 </select>
               {/if}
+              {#if showTorchButton && torchSupported}
+                <button type="button" on:click={toggleTorch}>
+                  {torchOn ? "Flashlight Off" : "Flashlight On"}
+                </button>
+              {/if}
               <button type="button" on:click={stopCamera}>Stop Scanning</button>
             {:else}
               <button type="button" on:click={startCamera} disabled={starting}>
@@ -306,7 +494,7 @@
               </button>
             {/if}
             {#if allowFileScan}
-              <button type="button" on:click={() => fileInput.click()}>
+              <button type="button" on:click={chooseFile}>
                 Scan an Image File
               </button>
               <input
@@ -357,6 +545,7 @@
     display: block;
     width: 100%;
     height: auto;
+    transform-origin: center;
   }
   .scanner-box {
     position: absolute;
@@ -366,6 +555,16 @@
     border: 2px solid white;
     box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.4);
     pointer-events: none;
+  }
+  .zoom {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    max-width: 400px;
+  }
+  .zoom input {
+    flex: 1;
   }
   .controls {
     display: flex;
