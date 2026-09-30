@@ -42,6 +42,8 @@ For small codes, use Full HD resolution and a zoom level of 2-4.
 
 ## Instructions
 
+**Svelte version:** plugins run on Budibase's own Svelte runtime, and Svelte's internal API changes between minor versions. The plugin must therefore be built with exactly the Svelte version Budibase ships (5.40.2 for Budibase 3.4x, see `svelte` in Budibase's root `package.json`). A mismatch can freeze the browser when the component renders. If Budibase updates Svelte, update the pinned version in `package.json` and rebuild.
+
 The camera only works over HTTPS (or on localhost) and is disabled in the builder preview.
 
 To build the plugin run the following in your Budibase CLI:

@@ -1,6 +1,6 @@
 {
   "name": "QR-Code-Scanner",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "A component that scans QR codes, including inverted (white on black) codes.",
   "license": "MIT",
   "svelte": "index.js",
@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "jsqr": "^1.4.0",
-    "svelte": "^5.0.0"
+    "svelte": "5.40.2"
   },
   "devDependencies": {
     "@budibase/backend-core": "^2.8.0",
@@ -29,6 +29,12 @@
     "tar": "^6.1.11"
   },
   "peerDependencies": {
-    "svelte": "^5.0.0"
+    "svelte": "5.40.2"
+  },
+  "overrides": {
+    "svelte": "5.40.2"
+  },
+  "resolutions": {
+    "svelte": "5.40.2"
   }
 }

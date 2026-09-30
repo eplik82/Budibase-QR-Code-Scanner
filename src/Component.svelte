@@ -42,12 +42,14 @@
   const formApi = formContext?.formApi;
   const labelPos = fieldGroupContext?.labelPosition || "above";
   $: formStep = formStepContext ? $formStepContext || 1 : 1;
+  // Signature: field, type, defaultValue, disabled, readonly, validationRules, step
   $: formField = formApi?.registerField(
     field,
-    "text",
-    0,
-    false,
+    "string",
     null,
+    false,
+    false,
+    [],
     formStep
   );
 
