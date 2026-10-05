@@ -86,9 +86,19 @@
     ],
   };
 
-  let video;
+  // The camera video is never added to the page. iOS Safari draws a <video> as
+  // a native layer that ignores clipping and covers the controls, so its frames
+  // are drawn onto an ordinary canvas instead (as in the jsQR demo).
+  const video = document.createElement("video");
+  video.muted = true;
+  video.playsInline = true;
+  video.setAttribute("muted", "");
+  video.setAttribute("playsinline", "");
   let videoWrapper;
-  let videoAspect = 4 / 3;
+  let preview;
+  let previewCtx;
+  let previewHeight = 0;
+  let renderFrame;
   let stream;
   let track;
   let scanTimer;
@@ -194,31 +204,61 @@
     return decode(ctx.getImageData(0, 0, w, h));
   }
 
-  function scanVideoFrame() {
-    const vw = video?.videoWidth;
-    const vh = video?.videoHeight;
+  // The part of the video frame that is shown in the preview: the centre,
+  // cropped to the preview's height limit and the digital zoom
+  function viewRegion() {
+    const vw = video.videoWidth;
+    const vh = video.videoHeight;
     if (!vw || !vh) return null;
-
-    // Only the visible centre of the frame is scanned. The video is shown with
-    // object-fit: cover in a box digitalZoom times the size of the wrapper,
-    // so it may be cropped by the height limit and by the zoom.
     const ww = videoWrapper?.clientWidth || vw;
-    const wh = videoWrapper?.clientHeight || vh;
-    const ratio = 1 / (Math.max(ww / vw, wh / vh) * digitalZoom);
-    let sw = Math.min(vw, ww * ratio);
-    let sh = Math.min(vh, wh * ratio);
-    if (scannerBox) {
-      // The scanner box is given in displayed pixels; map it to video pixels
-      sw = Math.min(sw, (scannerBoxWidth || 250) * ratio);
-      sh = Math.min(sh, (scannerBoxHeight || 250) * ratio);
-    }
-    return decodeRegion(video, (vw - sw) / 2, (vh - sh) / 2, sw, sh, digitalZoom);
+    const dh = Math.min(ww * (vh / vw), (window.innerHeight * videoHeightLimit) / 100);
+    const scale = Math.max(ww / vw, dh / vh) * digitalZoom;
+    return {
+      vw,
+      vh,
+      ww,
+      dh,
+      scale,
+      sw: Math.min(vw, ww / scale),
+      sh: Math.min(vh, dh / scale),
+    };
   }
 
-  function updateVideoAspect() {
-    if (video?.videoWidth && video?.videoHeight) {
-      videoAspect = video.videoWidth / video.videoHeight;
+  function drawPreview() {
+    const r = viewRegion();
+    if (!r || !preview) return;
+    const height = Math.round(r.dh);
+    if (height !== previewHeight) previewHeight = height;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const cw = Math.round(r.ww * dpr);
+    const ch = Math.round(r.dh * dpr);
+    if (preview.width !== cw) preview.width = cw;
+    if (preview.height !== ch) preview.height = ch;
+    previewCtx = previewCtx || preview.getContext("2d");
+    previewCtx.drawImage(video, (r.vw - r.sw) / 2, (r.vh - r.sh) / 2, r.sw, r.sh, 0, 0, cw, ch);
+  }
+
+  function renderLoop() {
+    if (!scanning) return;
+    try {
+      drawPreview();
+    } catch (e) {
+      // A frame that cannot be drawn yet is simply skipped
     }
+    renderFrame = requestAnimationFrame(renderLoop);
+  }
+
+  function scanVideoFrame() {
+    // Only the visible part of the frame is scanned
+    const r = viewRegion();
+    if (!r) return null;
+    let { sw, sh } = r;
+    if (scannerBox) {
+      // The scanner box is given in displayed pixels; map it to video pixels
+      sw = Math.min(sw, (scannerBoxWidth || 250) / r.scale);
+      sh = Math.min(sh, (scannerBoxHeight || 250) / r.scale);
+    }
+    return decodeRegion(video, (r.vw - sw) / 2, (r.vh - sh) / 2, sw, sh, digitalZoom);
   }
 
   function scanLoop() {
@@ -352,6 +392,7 @@
         storeCamera(activeId);
       }
       await loadCameras();
+      renderLoop();
       scanLoop();
     } catch (e) {
       stopCamera();
@@ -367,11 +408,14 @@
   function stopCamera() {
     scanning = false;
     clearTimeout(scanTimer);
+    cancelAnimationFrame(renderFrame);
+    previewCtx = null;
+    previewHeight = 0;
     stream?.getTracks().forEach((t) => t.stop());
     stream = null;
     track = null;
     torchOn = false;
-    if (video) video.srcObject = null;
+    video.srcObject = null;
   }
 
   function onCameraChange(e) {
@@ -451,23 +495,12 @@
           <div class="placeholder">The camera is disabled in the builder preview.</div>
         {:else}
           {#if scanning}
-            <div
-              class="video-wrapper"
-              bind:this={videoWrapper}
-              style={`aspect-ratio: ${videoAspect}; max-height: ${videoHeightLimit}vh;`}
-            >
-              <!-- Digital zoom enlarges the video box instead of using a CSS
-                   transform, which iOS Safari does not clip to the wrapper -->
-              <!-- svelte-ignore a11y-media-has-caption -->
-              <video
-                bind:this={video}
-                muted
-                playsinline
-                webkit-playsinline
-                on:loadedmetadata={updateVideoAspect}
-                on:resize={updateVideoAspect}
-                style={`width: ${digitalZoom * 100}%; height: ${digitalZoom * 100}%; left: ${((1 - digitalZoom) / 2) * 100}%; top: ${((1 - digitalZoom) / 2) * 100}%;`}
-              ></video>
+            <div class="video-wrapper" bind:this={videoWrapper}>
+              <canvas
+                class="preview"
+                bind:this={preview}
+                style={`height: ${previewHeight}px;`}
+              ></canvas>
               {#if scannerBox}
                 <div
                   class="scanner-box"
@@ -568,21 +601,10 @@
     justify-content: center;
     align-items: center;
     overflow: hidden;
-    /* Clip the video and scanner box shade inside the wrapper; clip-path also
-       clips the separately composited video layer on iOS Safari */
-    -webkit-clip-path: inset(0);
-    clip-path: inset(0);
-    /* A mask is the long-standing WebKit fix for video escaping its clip */
-    -webkit-mask-image: linear-gradient(#000, #000);
-    isolation: isolate;
-    background: black;
   }
-  video {
-    position: absolute;
+  .preview {
     display: block;
-    max-width: none;
-    max-height: none;
-    object-fit: cover;
+    width: 100%;
   }
   .scanner-box {
     position: absolute;
@@ -592,13 +614,6 @@
     border: 2px solid white;
     box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.4);
     pointer-events: none;
-  }
-  .zoom,
-  .controls,
-  .result,
-  .error {
-    position: relative;
-    z-index: 1;
   }
   .zoom {
     display: flex;
