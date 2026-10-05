@@ -68,6 +68,8 @@
   const MAX_DECODE_SIZE = 800;
   const MAX_ZOOM = 8;
   const MIN_PREVIEW_HEIGHT = 120;
+  // The scanner box is never larger than this share of the camera view
+  const BOX_MAX_SHARE = 0.85;
   const CAMERA_STORAGE_KEY = "budibase-qr-scanner-camera";
   const RESOLUTIONS = {
     sd: { width: 640, height: 480 },
@@ -99,6 +101,9 @@
   let preview;
   let previewCtx;
   let previewHeight = 0;
+  // Displayed scanner box size, kept inside the camera view
+  let boxWidth = 0;
+  let boxHeight = 0;
   // Height that fits in the Budibase grid cell holding the component
   let fitHeight = Infinity;
   let renderFrame;
@@ -214,9 +219,10 @@
     const vh = video.videoHeight;
     if (!vw || !vh) return null;
     const ww = videoWrapper?.clientWidth || vw;
+    // The view fills the configured height; the frame is cropped to fit
     const dh = Math.max(
       MIN_PREVIEW_HEIGHT,
-      Math.min(ww * (vh / vw), (window.innerHeight * videoHeightLimit) / 100, fitHeight)
+      Math.min((window.innerHeight * videoHeightLimit) / 100, fitHeight)
     );
     const scale = Math.max(ww / vw, dh / vh) * digitalZoom;
     return {
@@ -252,6 +258,10 @@
     if (!r || !preview) return;
     const height = Math.round(r.dh);
     if (height !== previewHeight) previewHeight = height;
+    const bw = Math.round(Math.min(scannerBoxWidth || 250, r.ww * BOX_MAX_SHARE));
+    const bh = Math.round(Math.min(scannerBoxHeight || 250, r.dh * BOX_MAX_SHARE));
+    if (bw !== boxWidth) boxWidth = bw;
+    if (bh !== boxHeight) boxHeight = bh;
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     const cw = Math.round(r.ww * dpr);
     const ch = Math.round(r.dh * dpr);
@@ -278,8 +288,8 @@
     let { sw, sh } = r;
     if (scannerBox) {
       // The scanner box is given in displayed pixels; map it to video pixels
-      sw = Math.min(sw, (scannerBoxWidth || 250) / r.scale);
-      sh = Math.min(sh, (scannerBoxHeight || 250) / r.scale);
+      sw = Math.min(sw, (boxWidth || scannerBoxWidth || 250) / r.scale);
+      sh = Math.min(sh, (boxHeight || scannerBoxHeight || 250) / r.scale);
     }
     return decodeRegion(video, (r.vw - sw) / 2, (r.vh - sh) / 2, sw, sh, digitalZoom);
   }
@@ -518,7 +528,10 @@
     <div class="spectrum-Form-itemField">
       <div class="scanner">
         {#if inBuilder}
-          <div class="placeholder">The camera is disabled in the builder preview.</div>
+          <!-- Same height as the camera view, so the component can be sized for it -->
+          <div class="placeholder camera-placeholder" style={`height: ${videoHeightLimit}vh;`}>
+            The camera is disabled in the builder preview.
+          </div>
         {:else}
           <!-- The controls come before the camera view so they stay visible even
                when the view does not fit in the space Budibase gives the component -->
@@ -593,7 +606,7 @@
               {#if scannerBox}
                 <div
                   class="scanner-box"
-                  style={`width: ${scannerBoxWidth || 250}px; height: ${scannerBoxHeight || 250}px;`}
+                  style={`width: ${boxWidth}px; height: ${boxHeight}px;`}
                 ></div>
               {/if}
             </div>
@@ -607,6 +620,15 @@
 <style>
   .placeholder {
     color: var(--spectrum-global-color-gray-600);
+  }
+  .camera-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 120px;
+    box-sizing: border-box;
+    border: 1px dashed var(--spectrum-global-color-gray-500);
   }
   label {
     white-space: nowrap;

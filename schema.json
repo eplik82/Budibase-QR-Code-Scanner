@@ -161,7 +161,7 @@
         "type": "boolean",
         "key": "scannerBox",
         "label": "Use Scanner Box",
-        "defaultValue": false
+        "defaultValue": true
       },
       {
         "type": "number",
@@ -184,7 +184,7 @@
       {
         "type": "number",
         "key": "maxVideoHeight",
-        "label": "Max Camera Height (% of screen)",
+        "label": "Camera Height (% of screen)",
         "min": 10,
         "max": 100,
         "defaultValue": 60
