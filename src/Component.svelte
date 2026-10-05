@@ -67,6 +67,7 @@
   // Frames are scaled to at most this many pixels on the long side before decoding
   const MAX_DECODE_SIZE = 800;
   const MAX_ZOOM = 8;
+  const MIN_PREVIEW_HEIGHT = 120;
   const CAMERA_STORAGE_KEY = "budibase-qr-scanner-camera";
   const RESOLUTIONS = {
     sd: { width: 640, height: 480 },
@@ -98,6 +99,8 @@
   let preview;
   let previewCtx;
   let previewHeight = 0;
+  // Height that fits in the Budibase grid cell holding the component
+  let fitHeight = Infinity;
   let renderFrame;
   let stream;
   let track;
@@ -211,7 +214,10 @@
     const vh = video.videoHeight;
     if (!vw || !vh) return null;
     const ww = videoWrapper?.clientWidth || vw;
-    const dh = Math.min(ww * (vh / vw), (window.innerHeight * videoHeightLimit) / 100);
+    const dh = Math.max(
+      MIN_PREVIEW_HEIGHT,
+      Math.min(ww * (vh / vw), (window.innerHeight * videoHeightLimit) / 100, fitHeight)
+    );
     const scale = Math.max(ww / vw, dh / vh) * digitalZoom;
     return {
       vw,
@@ -224,7 +230,24 @@
     };
   }
 
+  // Budibase 3 screens place each component in a fixed-size grid cell that
+  // scrolls its content. Shrink the camera view until the cell no longer
+  // overflows, so the whole scanner is visible without scrolling.
+  function fitToGridCell() {
+    const cell = videoWrapper?.closest?.(".grid > .component");
+    if (!cell || !previewHeight) return;
+    const overflow = cell.scrollHeight - cell.clientHeight;
+    if (overflow > 1 && previewHeight > MIN_PREVIEW_HEIGHT) {
+      fitHeight = Math.max(MIN_PREVIEW_HEIGHT, previewHeight - overflow);
+    }
+  }
+
+  function resetFit() {
+    fitHeight = Infinity;
+  }
+
   function drawPreview() {
+    fitToGridCell();
     const r = viewRegion();
     if (!r || !preview) return;
     const height = Math.round(r.dh);
@@ -350,6 +373,7 @@
     success = false;
     qrCodeValue = "";
     lastScanValue = null;
+    resetFit();
     fieldApi?.setValue(qrCodeValue);
 
     if (!navigator.mediaDevices?.getUserMedia) {
@@ -478,6 +502,8 @@
   });
 </script>
 
+<svelte:window on:resize={resetFit} />
+
 <div class="spectrum-Form-item" use:styleable={$component.styles}>
   {#if !formContext}
     <div class="placeholder">Form components need to be wrapped in a form</div>
@@ -494,44 +520,8 @@
         {#if inBuilder}
           <div class="placeholder">The camera is disabled in the builder preview.</div>
         {:else}
-          {#if scanning}
-            <div class="video-wrapper" bind:this={videoWrapper}>
-              <canvas
-                class="preview"
-                bind:this={preview}
-                style={`height: ${previewHeight}px;`}
-              ></canvas>
-              {#if scannerBox}
-                <div
-                  class="scanner-box"
-                  style={`width: ${scannerBoxWidth || 250}px; height: ${scannerBoxHeight || 250}px;`}
-                ></div>
-              {/if}
-            </div>
-            {#if showZoomControl}
-              <label class="zoom">
-                Zoom
-                <input
-                  type="range"
-                  min="1"
-                  max={MAX_ZOOM}
-                  step="0.1"
-                  value={zoomLevel}
-                  on:input={onZoomInput}
-                />
-                <span>{zoomLevel.toFixed(1)}x</span>
-              </label>
-            {/if}
-          {/if}
-
-          {#if success && showResult !== false}
-            <p class="result">Scanned Result: {qrCodeValue}</p>
-          {/if}
-
-          {#if errorMessage}
-            <p class="error">{errorMessage}</p>
-          {/if}
-
+          <!-- The controls come before the camera view so they stay visible even
+               when the view does not fit in the space Budibase gives the component -->
           <div class="controls">
             {#if scanning}
               {#if cameras.length > 1}
@@ -567,6 +557,47 @@
               />
             {/if}
           </div>
+
+          {#if scanning}
+            {#if showZoomControl}
+              <label class="zoom">
+                Zoom
+                <input
+                  type="range"
+                  min="1"
+                  max={MAX_ZOOM}
+                  step="0.1"
+                  value={zoomLevel}
+                  on:input={onZoomInput}
+                />
+                <span>{zoomLevel.toFixed(1)}x</span>
+              </label>
+            {/if}
+          {/if}
+
+          {#if success && showResult !== false}
+            <p class="result">Scanned Result: {qrCodeValue}</p>
+          {/if}
+
+          {#if errorMessage}
+            <p class="error">{errorMessage}</p>
+          {/if}
+
+          {#if scanning}
+            <div class="video-wrapper" bind:this={videoWrapper}>
+              <canvas
+                class="preview"
+                bind:this={preview}
+                style={`height: ${previewHeight}px;`}
+              ></canvas>
+              {#if scannerBox}
+                <div
+                  class="scanner-box"
+                  style={`width: ${scannerBoxWidth || 250}px; height: ${scannerBoxHeight || 250}px;`}
+                ></div>
+              {/if}
+            </div>
+          {/if}
         {/if}
       </div>
     </div>

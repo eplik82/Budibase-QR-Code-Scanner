@@ -41,6 +41,8 @@ Option | Description |
 
 For small codes, use Full HD resolution and a zoom level of 2-4.
 
+The buttons and zoom slider are shown above the camera view. On Budibase 3 grid screens the camera view shrinks to fit the component's cell, so make the cell taller in the builder for a bigger camera view.
+
 ## Instructions
 
 **Svelte version:** plugins run on Budibase's own Svelte runtime, and Svelte's internal API changes between minor versions. The plugin must therefore be built with exactly the Svelte version Budibase ships (5.40.2 for Budibase 3.4x, see `svelte` in Budibase's root `package.json`). A mismatch can freeze the browser when the component renders. If Budibase updates Svelte, update the pinned version in `package.json` and rebuild.
