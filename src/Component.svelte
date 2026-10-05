@@ -87,6 +87,8 @@
   };
 
   let video;
+  let videoWrapper;
+  let videoAspect = 4 / 3;
   let stream;
   let track;
   let scanTimer;
@@ -198,18 +200,25 @@
     if (!vw || !vh) return null;
 
     // Only the visible centre of the frame is scanned. The video is shown with
-    // object-fit: cover, so it may be cropped when its height is limited.
-    const cw = video.clientWidth || vw;
-    const ch = video.clientHeight || vh;
-    const ratio = 1 / (Math.max(cw / vw, ch / vh) * digitalZoom);
-    let sw = Math.min(vw, cw * ratio);
-    let sh = Math.min(vh, ch * ratio);
+    // object-fit: cover in a box digitalZoom times the size of the wrapper,
+    // so it may be cropped by the height limit and by the zoom.
+    const ww = videoWrapper?.clientWidth || vw;
+    const wh = videoWrapper?.clientHeight || vh;
+    const ratio = 1 / (Math.max(ww / vw, wh / vh) * digitalZoom);
+    let sw = Math.min(vw, ww * ratio);
+    let sh = Math.min(vh, wh * ratio);
     if (scannerBox) {
       // The scanner box is given in displayed pixels; map it to video pixels
       sw = Math.min(sw, (scannerBoxWidth || 250) * ratio);
       sh = Math.min(sh, (scannerBoxHeight || 250) * ratio);
     }
     return decodeRegion(video, (vw - sw) / 2, (vh - sh) / 2, sw, sh, digitalZoom);
+  }
+
+  function updateVideoAspect() {
+    if (video?.videoWidth && video?.videoHeight) {
+      videoAspect = video.videoWidth / video.videoHeight;
+    }
   }
 
   function scanLoop() {
@@ -444,14 +453,20 @@
           {#if scanning}
             <div
               class="video-wrapper"
-              style={`max-height: ${videoHeightLimit}vh;`}
+              bind:this={videoWrapper}
+              style={`aspect-ratio: ${videoAspect}; max-height: ${videoHeightLimit}vh;`}
             >
+              <!-- Digital zoom enlarges the video box instead of using a CSS
+                   transform, which iOS Safari does not clip to the wrapper -->
               <!-- svelte-ignore a11y-media-has-caption -->
               <video
                 bind:this={video}
                 muted
                 playsinline
-                style={`transform: scale(${digitalZoom}); max-height: ${videoHeightLimit}vh;`}
+                webkit-playsinline
+                on:loadedmetadata={updateVideoAspect}
+                on:resize={updateVideoAspect}
+                style={`width: ${digitalZoom * 100}%; height: ${digitalZoom * 100}%; left: ${((1 - digitalZoom) / 2) * 100}%; top: ${((1 - digitalZoom) / 2) * 100}%;`}
               ></video>
               {#if scannerBox}
                 <div
@@ -553,17 +568,21 @@
     justify-content: center;
     align-items: center;
     overflow: hidden;
-    /* Clip the zoomed video and scanner box shade inside the wrapper
-       (iOS Safari otherwise lets a transformed video paint over its siblings) */
+    /* Clip the video and scanner box shade inside the wrapper; clip-path also
+       clips the separately composited video layer on iOS Safari */
+    -webkit-clip-path: inset(0);
+    clip-path: inset(0);
+    /* A mask is the long-standing WebKit fix for video escaping its clip */
+    -webkit-mask-image: linear-gradient(#000, #000);
     isolation: isolate;
-    transform: translateZ(0);
+    background: black;
   }
   video {
+    position: absolute;
     display: block;
-    width: 100%;
-    height: auto;
+    max-width: none;
+    max-height: none;
     object-fit: cover;
-    transform-origin: center;
   }
   .scanner-box {
     position: absolute;
