@@ -34,14 +34,14 @@ Option | Description |
 | Sound Volume (0-100) | Volume of the scan sound.|
 | Vibrate On Scan | Vibrate after a successful scan (Android devices).|
 | Allow Scanning From Image File | Show a button to scan a QR code from an image file.|
-| Scanner Box | Whether to draw a box in the center of the screen that users will have to align QR codes inside of.|
+| Scanner Box | Draw a box in the middle of the camera view; only codes inside it are scanned (on by default). The box always stays inside the camera view.|
 | Scanner Box Width | The width of the scanner box.|
 | Scanner Box Height | The height of the scanner box.|
-| Max Camera Height (% of screen) | Limits the camera view to this share of the screen height (default 60), so the buttons below it stay visible. The view is cropped to fit.|
+| Camera Height (% of screen) | Height of the camera view as a share of the screen height (default 60). The camera picture is cropped to fill it.|
 
 For small codes, use Full HD resolution and a zoom level of 2-4.
 
-The buttons and zoom slider are shown above the camera view. On Budibase 3 grid screens the camera view shrinks to fit the component's cell, so make the cell taller in the builder for a bigger camera view.
+The buttons and zoom slider are shown above the camera view. On Budibase 3 grid screens the camera view shrinks to fit the component's cell, so make the cell taller in the builder for a bigger camera view. In the builder the component shows a dashed placeholder as tall as the camera view, which shows how tall to make the cell.
 
 ## Instructions
 
