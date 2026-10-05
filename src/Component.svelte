@@ -570,7 +570,10 @@
     overflow: hidden;
     /* Clip the video and scanner box shade inside the wrapper; clip-path also
        clips the separately composited video layer on iOS Safari */
+    -webkit-clip-path: inset(0);
     clip-path: inset(0);
+    /* A mask is the long-standing WebKit fix for video escaping its clip */
+    -webkit-mask-image: linear-gradient(#000, #000);
     isolation: isolate;
     background: black;
   }
