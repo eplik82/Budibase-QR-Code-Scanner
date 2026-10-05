@@ -37,6 +37,7 @@ Option | Description |
 | Scanner Box | Whether to draw a box in the center of the screen that users will have to align QR codes inside of.|
 | Scanner Box Width | The width of the scanner box.|
 | Scanner Box Height | The height of the scanner box.|
+| Max Camera Height (% of screen) | Limits the camera view to this share of the screen height (default 60), so the buttons below it stay visible. The view is cropped to fit.|
 
 For small codes, use Full HD resolution and a zoom level of 2-4.
 
