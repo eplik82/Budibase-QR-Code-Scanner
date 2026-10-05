@@ -180,6 +180,14 @@
         "max": 10000,
         "dependsOn": "scannerBox",
         "defaultValue": 250
+      },
+      {
+        "type": "number",
+        "key": "maxVideoHeight",
+        "label": "Max Camera Height (% of screen)",
+        "min": 10,
+        "max": 100,
+        "defaultValue": 60
       }
     ]
   }

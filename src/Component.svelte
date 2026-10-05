@@ -28,6 +28,7 @@
   export let scannerBox;
   export let scannerBoxWidth;
   export let scannerBoxHeight;
+  export let maxVideoHeight;
   export let onScan;
 
   const { styleable, builderStore } = getContext("sdk");
@@ -113,6 +114,10 @@
 
   $: zoomLevel = clampZoom(zoom);
 
+  // Keeps the camera view from growing taller than the screen (portrait phone
+  // streams are taller than wide) and hiding the controls below it
+  $: videoHeightLimit = Math.min(100, Math.max(10, Number(maxVideoHeight) || 60));
+
   function clampZoom(value) {
     const z = Number(value);
     return Number.isFinite(z) ? Math.min(MAX_ZOOM, Math.max(1, z)) : 1;
@@ -192,12 +197,15 @@
     const vh = video?.videoHeight;
     if (!vw || !vh) return null;
 
-    // Only the (digitally zoomed) visible centre of the frame is scanned
-    let sw = vw / digitalZoom;
-    let sh = vh / digitalZoom;
+    // Only the visible centre of the frame is scanned. The video is shown with
+    // object-fit: cover, so it may be cropped when its height is limited.
+    const cw = video.clientWidth || vw;
+    const ch = video.clientHeight || vh;
+    const ratio = 1 / (Math.max(cw / vw, ch / vh) * digitalZoom);
+    let sw = Math.min(vw, cw * ratio);
+    let sh = Math.min(vh, ch * ratio);
     if (scannerBox) {
       // The scanner box is given in displayed pixels; map it to video pixels
-      const ratio = vw / ((video.clientWidth || vw) * digitalZoom);
       sw = Math.min(sw, (scannerBoxWidth || 250) * ratio);
       sh = Math.min(sh, (scannerBoxHeight || 250) * ratio);
     }
@@ -434,13 +442,16 @@
           <div class="placeholder">The camera is disabled in the builder preview.</div>
         {:else}
           {#if scanning}
-            <div class="video-wrapper">
+            <div
+              class="video-wrapper"
+              style={`max-height: ${videoHeightLimit}vh;`}
+            >
               <!-- svelte-ignore a11y-media-has-caption -->
               <video
                 bind:this={video}
                 muted
                 playsinline
-                style={`transform: scale(${digitalZoom});`}
+                style={`transform: scale(${digitalZoom}); max-height: ${videoHeightLimit}vh;`}
               ></video>
               {#if scannerBox}
                 <div
@@ -542,11 +553,16 @@
     justify-content: center;
     align-items: center;
     overflow: hidden;
+    /* Clip the zoomed video and scanner box shade inside the wrapper
+       (iOS Safari otherwise lets a transformed video paint over its siblings) */
+    isolation: isolate;
+    transform: translateZ(0);
   }
   video {
     display: block;
     width: 100%;
     height: auto;
+    object-fit: cover;
     transform-origin: center;
   }
   .scanner-box {
@@ -557,6 +573,13 @@
     border: 2px solid white;
     box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.4);
     pointer-events: none;
+  }
+  .zoom,
+  .controls,
+  .result,
+  .error {
+    position: relative;
+    z-index: 1;
   }
   .zoom {
     display: flex;
